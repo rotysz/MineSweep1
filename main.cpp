@@ -19,11 +19,16 @@ typedef int TPlansza[PLANSZA_MAX_X][PLANSZA_MAX_Y];
 
 #define MAX_SCREEN_X 160
 #define MAX_SCREEN_Y 100
+#define F_WHITE  FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED
+#define B_WHITE  BACKGROUND_BLUE|BACKGROUND_GREEN|BACKGROUND_RED
+#define F_BLACK  0
+#define B_BLACK  0
+
 class CScreenChar {
     private:
         char scr_value = ' ';
-        int  scr_fcolor = rlutil::WHITE;
-        int  scr_bcolor  = rlutil::BLACK;
+        int  scr_fcolor = F_WHITE;
+        int  scr_bcolor  = B_BLACK;
     public:
 
     CScreenChar() {
@@ -64,7 +69,7 @@ class CKeyOrMouseDetails {
     INPUT_RECORD input_event;
   public:
     enum TInputType {MOUSE,KEYBOARD,OTHER};
-    enum TMouseEvent {LEFT_CLK, RIGHT_CLK, DOUBLE_CLK, CLK, MOUSE_OTHER, MOUSE_NO_EVENT };
+    enum TMouseEvent {LEFT_CLK, RIGHT_CLK, DOUBLE_CLK, CLK, MOUSE_MOVE, MOUSE_OTHER, MOUSE_NO_EVENT };
     enum TKeyEvent {KEY_PRES,KEY_REL,KEY_OTHER,KEY_NO_EVENT} ;
 
      CKeyOrMouseDetails () {
@@ -115,6 +120,10 @@ class CKeyOrMouseDetails {
                 break;
              case DOUBLE_CLICK:
                  ret_event = DOUBLE_CLK;
+                 break;
+             case MOUSE_MOVED:
+                  ret_event = MOUSE_MOVE;
+                  break;
              default:
                 ret_event = MOUSE_OTHER;
 
@@ -177,10 +186,6 @@ class CKeyOrMouseDetails {
 
 };
 
-#define F_WHITE  FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED
-#define B_WHITE  BACKGROUND_BLUE|BACKGROUND_GREEN|BACKGROUND_RED
-#define F_BLACK  0
-#define B_BLACK  0
 class CConsoleScreen{
 private:
     CScreenChar screen_table[MAX_SCREEN_X][MAX_SCREEN_Y];
@@ -256,7 +261,7 @@ public:
 
     void PrintChar (int x_, int y_, char scr_char_, int fcolor_ = F_WHITE, int bcolor_ = B_BLACK) {
 
-        screen_table [x_][y_].SetValueAndColor(scr_char_, fcolor_, bcolor_);
+        screen_table[x_][y_].SetValueAndColor(scr_char_, fcolor_, bcolor_);
         SetCursor(x_, y_);
         SetConsoleTextAttribute(h_std_out,fcolor_|bcolor_);
         cout << scr_char_;
@@ -274,6 +279,14 @@ public:
     void PrintInt(int x_, int y_, int number, int fcolor_ = F_WHITE, int bcolor_ = B_BLACK ){
 
         PrintString(x_, y_, to_string(number), fcolor_, bcolor_);
+    }
+
+    void PrintIntRJust(int x_, int y_, int number_, int field_len_ , int fcolor_ = F_WHITE, int bcolor_ = B_BLACK ){
+
+        string buf = to_string(number_);
+
+        ClearLine(x_,y_,field_len_,fcolor_,bcolor_);
+        PrintString(x_+(field_len_ - buf.length()), y_, buf, fcolor_, bcolor_);
     }
 
     void ChangeColor (int x_, int y_, int fcolor_ = F_WHITE, int bcolor_ = B_BLACK ) {
@@ -543,8 +556,9 @@ class CPlansza {
 
       CConsoleScreen screen;
       enum TCellSize { SMALL, BIG} cell_size;
-    int plansza_pos_x = 4;
-    int plansza_pos_y = 4;
+
+      int plansza_pos_x = 4;
+      int plansza_pos_y = 4;
 
 
     public:
@@ -662,7 +676,10 @@ class CPlansza {
             }
             if (idx_y_ == 0) screen.PrintString(init_x, plansza_pos_y+1, "---",frame_f_color_);
             if (idx_y_ == ysize-1) screen.PrintString(init_x, init_y+1, "---",frame_f_color_);
-            screen.PrintString(init_x, init_y,"   |",frame_f_color_);
+            if (idx_x_ == xsize-1)
+                screen.PrintString(init_x+3, init_y,"|",frame_f_color_);
+            else
+                screen.PrintString(init_x+2, init_y," ");
             //screen.PrintString(init_x, init_y+1,"----",frame_f_color_);
             screen.PrintChar(init_x+1, init_y,inside_char);
         }
@@ -703,7 +720,44 @@ class CPlansza {
             DisplayOneCell( x, y, Plansza[x][y].toChar(debug_),FOREGROUND_GREEN);
 
     }
+    void InputHandler() {
+       bool quit_program = false;
+       CKeyOrMouseDetails key_or_mouse;
 
+       screen.HideCursor();
+
+    while (!quit_program) {
+        key_or_mouse = screen.ReadConInput(true);
+        if (key_or_mouse.GetInputType() == CKeyOrMouseDetails::MOUSE) {
+            screen.ClearLine(1,22,60);
+            screen.PrintString(1,22,"MOUSE:");
+            if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::LEFT_CLK)
+                screen.PrintString(8,22,"LEFT_CLICK");
+            else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::RIGHT_CLK)
+                screen.PrintString(8,22,"RIGHT_CLICK");
+            else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::DOUBLE_CLK)
+                screen.PrintString(8,22,"DOUBLE_CLICK");
+            else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::CLK)
+                screen.PrintString(8,22,"OTHER_CLICK");
+            else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::MOUSE_MOVE)
+                screen.ReverseColor(key_or_mouse.GetMouseXPos(),key_or_mouse.GetMouseYPos());
+            screen.PrintIntRJust(20,22,key_or_mouse.GetMouseXPos(),4);
+            screen.PrintIntRJust(26,22,key_or_mouse.GetMouseYPos(),4);
+        } else {
+            screen.ClearLine(1,22,60);
+            screen.PrintString(1,22,"KEYB:");
+            if (key_or_mouse.GetKeyEvent() == CKeyOrMouseDetails::KEY_PRES)
+                screen.PrintString(8,22,"PRESSED");
+            else
+                screen.PrintString(8,22,"RELEASED");
+            screen.PrintChar(30,22,key_or_mouse.GetPressedKey());
+            if (key_or_mouse.GetPressedKey() == 'q')
+                quit_program = true;
+        };
+
+    };
+    screen.ShowCursor();
+  }
 }; //Class
 
 
@@ -712,31 +766,8 @@ int main()
 {
   CPlansza Plansza(10,10);
   CConsoleScreen console_scr;
-  bool quit_program = false;
-  CKeyOrMouseDetails key_or_mouse;
-
-//  std::cout << "\nTest 1: Colors" << std::endl;
-//    for (int i = 0; i < 16; i++) {
-//        rlutil::setColor(i);
-//        std::cout << i << " ";
-//    }
-//  rlutil::resetColor();
-
-//
 
     console_scr.Cls();
-//   for (int y =0; y<10;y++)
-//        for(int x = 0; x<15;x++)
-//            Plansza.DisplayOneCell( x, y, '*',rlutil::GREEN);
-
-    Plansza.GenerateTest();
-    Plansza.DisplayPlansza(true);
-    Plansza.ChangeCellFrameColor(5 , 5, FOREGROUND_RED,B_BLACK);
-
-//  console_scr.PrintString(20,5,"Ala ma kota",rlutil::RED,rlutil::WHITE);
-//  console_scr.PrintString(22,6,"Kot ma Ale");
-//
-  console_scr.SetCursor(1, 28);
 
   Plansza.GenerateTest();
   Plansza.PutMine(4,5);
@@ -749,39 +780,8 @@ int main()
   Plansza.Unhide(1,8);
   Plansza.DisplayPlansza(false);
   Plansza.ChangeCellFrameColor(5 , 5, FOREGROUND_RED,B_BLACK);
-
    console_scr.SetCursor(1, 28);
-   console_scr.HideCursor();
-   while (!quit_program) {
-     key_or_mouse = console_scr.ReadConInput(false);
-     if (key_or_mouse.GetInputType() == CKeyOrMouseDetails::MOUSE) {
-        console_scr.ClearLine(1,22,60);
-        console_scr.PrintString(1,22,"MOUSE:");
-        if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::LEFT_CLK)
-            console_scr.PrintString(8,22,"LEFT_CLICK");
-        else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::RIGHT_CLK)
-           console_scr.PrintString(8,22,"RIGHT_CLICK");
-        else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::DOUBLE_CLK)
-           console_scr.PrintString(8,22,"DOUBLE_CLICK");
-        else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::CLK)
-           console_scr.PrintString(8,22,"OTHER_CLICK");
-        console_scr.PrintInt(20,22,key_or_mouse.GetMouseXPos());
-        console_scr.PrintInt(26,22,key_or_mouse.GetMouseYPos());
-     } else {
-       console_scr.ClearLine(1,22,60);
-       console_scr.PrintString(1,22,"KEYB:");
-       if (key_or_mouse.GetKeyEvent() == CKeyOrMouseDetails::KEY_PRES)
-            console_scr.PrintString(8,22,"PRESSED");
-       else
-             console_scr.PrintString(8,22,"RELEASEd");
-       console_scr.PrintChar(30,22,key_or_mouse.GetPressedKey());
-       if (key_or_mouse.GetPressedKey() == 'q')
-         quit_program = true;
-
-     }
-
-   };
-   console_scr.ShowCursor();
+   Plansza.InputHandler();
 //
     return 0;
 }

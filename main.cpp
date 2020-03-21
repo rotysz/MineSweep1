@@ -365,8 +365,6 @@ public:
 
     }
 
-
-
     bool KeyEventAction (KEY_EVENT_RECORD ker) {
          return true;
     }
@@ -374,20 +372,12 @@ public:
 
 
 #define INPUT_BUF_SIZE 128
-  CKeyOrMouseDetails ReadConInput(bool return_mouse_move) {
+  CKeyOrMouseDetails ReadConInput(bool return_mouse_move){
 
         DWORD num_read, i;
         INPUT_RECORD input_buf[INPUT_BUF_SIZE];
         CKeyOrMouseDetails key_or_mouse_details;
         enum TExit {CONT,KEY_EXIT,MOUSE_EXIT,READ_ERROR} exit_loop;
-
-
-//        if (! SetInputMode()     if (key_or_mouse.GetPressedKey() == 'f')
-//                PrintString (0,24,"Wprowadz wspolrzedne do oflagowania:");)
-//          cout <<"Blad wywolania SetConsoleMode";
-
-       if (key_or_mouse_details.GetPressedKey() == 'f')
-                PrintString (0,24,"Wprowadz wspolrzedne do oflagowania:");
 
         exit_loop = CONT;
         while (exit_loop == CONT) {
@@ -572,6 +562,50 @@ class CPolePlanszy {
 
        return ret_char;
     }
+
+
+    WORD getColor (bool debug) {
+
+       WORD ret_color;
+       if (debug)
+        if (flaged)
+           ret_color =FOREGROUND_RED;
+         else if (visible)
+           if (mine_present)
+             ret_color = FOREGROUND_RED|FOREGROUND_INTENSITY;
+           else
+             if (near_mines == 0)
+               ret_color = F_WHITE;
+             else
+                ret_color = near_mines;
+         else
+            if (mine_present)
+               ret_color = FOREGROUND_RED|FOREGROUND_INTENSITY;
+            else
+              if (near_mines == 0)
+               ret_color = F_WHITE;
+             else
+                ret_color = near_mines;
+
+       else if (flaged)
+           ret_color =FOREGROUND_RED;
+         else if (visible)
+           if (mine_present)
+             ret_color = F_WHITE;
+           else
+             if (near_mines == 0)
+               ret_color = F_WHITE;
+             else
+                ret_color = near_mines;
+         else
+            if (mine_present)
+               ret_color = F_WHITE;
+            else
+              ret_color = F_WHITE;
+              //ret_char = 'X';
+         return ret_color;
+       }
+
 };
 
 
@@ -581,6 +615,7 @@ class CPlansza {
       CPolePlanszy Plansza[PLANSZA_MAX_X][PLANSZA_MAX_Y];
       int xsize;
       int ysize;
+      bool first_move = true;
 
       CConsoleScreen screen;
       enum TCellSize { SMALL, BIG} cell_size;
@@ -589,7 +624,7 @@ class CPlansza {
       int plansza_pos_x = 4;
       int plansza_pos_y = 4;
 
-      int ilosc_min=10;
+      int ilosc_min=0;
       int ilosc_flag=0;
       std::chrono::system_clock::time_point start_rozgrywki = std::chrono::system_clock::now();
 
@@ -599,12 +634,14 @@ class CPlansza {
     CPlansza () {
         xsize=10;
         ysize=10;
+        first_move = true;
     };
 
     CPlansza (int xsize_, int ysize_) {
         xsize = xsize_;
         ysize = ysize_;
         cell_size = SMALL;
+        first_move = true;
     }
 
     void DspPlansza () {
@@ -621,7 +658,10 @@ class CPlansza {
           return -1;
        if (y_>=ysize)
           return -1;
-       Plansza[x_][y_].PutMine();
+       if(!Plansza[x_][y_].isMinned()) {
+          Plansza[x_][y_].PutMine();
+          ilosc_min++;
+       };
        return 0;
     }
 
@@ -636,7 +676,7 @@ class CPlansza {
 
     void CalcOneMine (int x_, int y_) {
 
-      if (!Plansza[x_][y_].isMinned())
+       if (!Plansza[x_][y_].isMinned())
           for (int i = max(0,x_-1); i<min(xsize,x_+2);i++)
             for (int j = max(0,y_-1); j<min(ysize,y_+2);j++)
                if(Plansza[i][j].isMinned())
@@ -646,6 +686,11 @@ class CPlansza {
     }
 
     void CalcAllMines () {
+       // clear first
+      for (int i = 0; i <xsize;i++)
+         for (int j = 0; j<ysize; j++)
+           Plansza[i][j].setNearMines(0);
+
 
        for (int i = 0; i <xsize;i++)
          for (int j = 0; j<ysize; j++)
@@ -669,16 +714,50 @@ class CPlansza {
 
     void UstawMiny (int ilosc_min_) {
       //TODO losowanie min na planszy
-       ilosc_min=ilosc_min_;
+       int ilosc_min;
+
+       srand (time(NULL));
+       ilosc_min = ilosc_min_;
+       while (ilosc_min > 0) {
+         int x = rand() % xsize;
+         int y = rand() % ysize;
+         if (!Plansza[x][y].isMinned()) {
+            PutMine(x,y);
+            ilosc_min--;
+         }
+
+       }
        ilosc_flag=0;
+       CalcAllMines();
+
        start_rozgrywki = std::chrono::system_clock::now();
     };
 
+    void MoveMine (int x_, int y_) {
+      int xi = 0;
+      int yi = 0;
+      if (first_move) {
+          if (Plansza[x_][y_].isMinned()){
+            while (Plansza[xi][yi].isMinned() && yi < ysize) {
+                if (xi >= xsize) {
+                    xi = 0;
+                    yi++;
+                } else {
+                    xi++;
+                }
+            }
+             Plansza[x_][y_].RemoveMine();
+             Plansza[xi][yi].PutMine();
+             CalcAllMines();
+          }
+      }
+      first_move = false;
+    };
 
     void GenerateTest () {
        for (int i = 0; i <xsize;i++)
          for (int j = 0; j<ysize; j++)
-           if (i == j) Plansza[i][j].PutMine();
+           if (i == j) PutMine(i,j);
            else Plansza[i][j].RemoveMine();
     }
 
@@ -691,7 +770,7 @@ class CPlansza {
         cell_size = cell_size_;
     }
 
-    void DisplayOneCell (int idx_x_,  int idx_y_, char inside_char, int frame_f_color_) {
+    void DisplayOneCell (int idx_x_,  int idx_y_, char inside_char, int cell_color_,int frame_f_color_) {
 
         int init_x;
         int init_y;
@@ -721,7 +800,7 @@ class CPlansza {
             else
                 screen.PrintString(init_x+2, init_y," ");
             //screen.PrintString(init_x, init_y+1,"----",frame_f_color_);
-            screen.PrintChar(init_x+1, init_y,inside_char);
+            screen.PrintChar(init_x+1, init_y,inside_char,cell_color_);
         }
     }
 
@@ -772,26 +851,52 @@ class CPlansza {
       DisplayStatusLine();
       for (int y =0; y<ysize;y++)
         for(int x = 0; x<xsize;x++)
-            DisplayOneCell( x, y, Plansza[x][y].toChar(debug_),FOREGROUND_GREEN);
+            DisplayOneCell( x, y, Plansza[x][y].toChar(debug_),Plansza[x][y].getColor(debug_),FOREGROUND_GREEN);
 
+    }
+
+    bool GameWon () {
+      bool won = false;
+
+      if (ilosc_flag == ilosc_min) {
+        won = true;
+        for (int i = 0; i< xsize; i++)
+            for(int j = 0; j <ysize; j++)
+               if (!Plansza[i][j].isVisible() && !Plansza[i][j].isMinned())
+               won = false;
+      }
+
+      return won;
     }
 
     TMoveStatus DoMove (int x_, int y_) {
 
        TMoveStatus return_status;
 
-       if (Plansza[x_][y_].isVisible() || Plansza[x_][y_].isFlaged()) {
-            return_status = DUMMY_MOVE;
-       }else if (Plansza[x_][y_].isMinned() ) {
-            return_status = GAME_OVER;
-            DisplayPlansza(true);
-            screen.PrintString(30,4,"GAME OVER !!! YOU BLOWN UP EVERYTHING",FOREGROUND_BLUE,BACKGROUND_RED);
+
+       if (x_ <0 || y_ < 0 || x_ >= xsize || y_ >= ysize ) {
+          return_status = DUMMY_MOVE;
        } else {
-         return_status = CORECT_MOVE;
-         Unhide(x_,y_);
-         DisplayPlansza(false);
-         // ToDo sprawdzenie czy czasami ktoœ nie wygra³ wtedy zwracamy YOU_WIN
-       }
+           if (first_move) MoveMine(x_,y_);
+           if (Plansza[x_][y_].isVisible() || Plansza[x_][y_].isFlaged()) {
+                return_status = DUMMY_MOVE;
+           }else if (Plansza[x_][y_].isMinned() ) {
+                return_status = GAME_OVER;
+                DisplayPlansza(true);
+                screen.PrintString(30,4,"GAME OVER !!! YOU BLOWN UP EVERYTHING",FOREGROUND_BLUE,BACKGROUND_RED);
+           } else {
+             return_status = CORECT_MOVE;
+             Unhide(x_,y_);
+             DisplayPlansza(false);
+             if (GameWon ()) {
+                return_status = YOU_WIN;
+                DisplayPlansza(true);
+                screen.PrintString(30,4,"YOU WON !!!! REALLY YOU WON !!!!!",FOREGROUND_BLUE,BACKGROUND_RED);
+
+             }
+             // ToDo sprawdzenie czy czasami ktoœ nie wygra³ wtedy zwracamy YOU_WIN
+           }
+       };
        return return_status;
     }
 
@@ -806,6 +911,12 @@ class CPlansza {
         Plansza[x_][y_].ToogleFlag();
         DisplayPlansza(false);
         return_status = CORECT_MOVE;
+         if (GameWon ()) {
+                return_status = YOU_WIN;
+                DisplayPlansza(true);
+                screen.PrintString(30,4,"YOU WON !!!! REALLY YOU WON !!!!!",FOREGROUND_BLUE,BACKGROUND_RED);
+
+         }
       };
 
        return return_status;
@@ -816,6 +927,7 @@ class CPlansza {
         CKeyOrMouseDetails key_or_mouse;
 
         screen.HideCursor();
+        DisplayPlansza(false);
 
         while (!quit_program) {
       //  int key = rlutil::getkey();
@@ -827,16 +939,20 @@ class CPlansza {
             if (key_or_mouse.GetInputType() == CKeyOrMouseDetails::MOUSE) {
                 screen.ClearLine(1,22,60);
                 screen.PrintString(1,22,"MOUSE:");
-                plansza_x = (key_or_mouse.GetMouseXPos() - 7)/2;
-                plansza_y = key_or_mouse.GetMouseYPos() - 6;
+                plansza_x = (key_or_mouse.GetMouseXPos() - plansza_pos_x - 3)/2;
+                plansza_y = key_or_mouse.GetMouseYPos() - plansza_pos_y -2;
+                if (plansza_x < 0 || plansza_x >= xsize || plansza_y <0 || plansza_y >= ysize) {
+                    plansza_x = -1;
+                    plansza_y = -1;
+                }
                 if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::LEFT_CLK) {
                     screen.PrintString(8,22,"LEFT_CLICK");
                     screen.PrintIntRJust(30,23,plansza_x,3);
                     screen.PrintIntRJust(34,23,plansza_y,3);
                     move_status = DoMove(plansza_x,plansza_y);
-                    if (move_status == GAME_OVER) {
-                       screen.PrintString(1,23,"MOVE : GAME OVER");
-                        quit_program = true;
+
+                    if (move_status == GAME_OVER || move_status == YOU_WIN) {
+                       quit_program = true;
                     }
                     else if (move_status == DUMMY_MOVE) screen.PrintString(1,23,"MOVE : DUMMY_MOVE");
                     else  if (move_status == CORECT_MOVE) screen.PrintString(1,23,"MOVE : CORECT_MOVE");
@@ -850,6 +966,7 @@ class CPlansza {
                     if (move_status == GAME_OVER) screen.PrintString(1,23,"MOVE : GAME OVER");
                     else if (move_status == DUMMY_MOVE) screen.PrintString(1,23,"MOVE : DUMMY_MOVE");
                     else  if (move_status == CORECT_MOVE) screen.PrintString(1,23,"MOVE : CORECT_MOVE");
+                    else if (move_status == YOU_WIN) quit_program =true;
 
                 }
                 else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::DOUBLE_CLK)
@@ -889,23 +1006,8 @@ class CPlansza {
 int main()
 {
   CPlansza Plansza(10,10);
-  CConsoleScreen console_scr;
 
-    console_scr.Cls();
-
-  Plansza.GenerateTest();
-  Plansza.PutMine(4,5);
-  Plansza.PutMine(4,7);
-  Plansza.UstawMiny(10);
-  Plansza.DisplayPlansza(true);
-//  Plansza.DspPlansza();
-  Plansza.CalcAllMines();
-  Plansza.DisplayPlansza(true);
-//  Plansza.DspPlansza();
- // Plansza.Unhide(1,8);
-  Plansza.DisplayPlansza(false);
-  Plansza.ChangeCellFrameColor(5 , 5, FOREGROUND_RED,B_BLACK);
-   console_scr.SetCursor(1, 28);
+   Plansza.UstawMiny(10);
    Plansza.InputHandler();
 //
     return 0;

@@ -377,19 +377,22 @@ public:
         DWORD num_read, i;
         INPUT_RECORD input_buf[INPUT_BUF_SIZE];
         CKeyOrMouseDetails key_or_mouse_details;
-        enum TExit {CONT,KEY_EXIT,MOUSE_EXIT,READ_ERROR} exit_loop;
+        enum TExit {CONT,KEY_EXIT,MOUSE_EXIT,READ_ERROR,NO_INPUT} exit_loop;
+        int wait_counter = 100;
 
         exit_loop = CONT;
         while (exit_loop == CONT) {
-           if (! ReadConsoleInput(
-                h_std_in,      // input buffer handle
-                input_buf,     // buffer to read into
-                INPUT_BUF_SIZE,         // size of read buffer
-                &num_read) ){
-                    cout << "ERROR ReadConsoleINPUT";
-                    exit_loop = READ_ERROR;
-                    continue;
-                  } ;
+           GetNumberOfConsoleInputEvents (h_std_in, &num_read);
+           if (num_read > 0)
+               if (! ReadConsoleInput(
+                    h_std_in,      // input buffer handle
+                    input_buf,     // buffer to read into
+                    INPUT_BUF_SIZE,         // size of read buffer
+                    &num_read) ){
+                        cout << "ERROR ReadConsoleINPUT";
+                        exit_loop = READ_ERROR;
+                        continue;
+                      } ;
          for (i=0; i < num_read; i++) {
             switch(input_buf[i].EventType) {
                 case KEY_EVENT: // keyboard input
@@ -414,10 +417,18 @@ public:
                     break;
 
             }
+
            if (exit_loop != CONT) break;
          }
+         if (num_read == 0) {
+            wait_counter--;
+            Sleep(1);
+            if (wait_counter < 1)
+               exit_loop = NO_INPUT;
+         };
         }
-       key_or_mouse_details.SetInputEvent(input_buf[i]);
+       if (exit_loop != READ_ERROR  && exit_loop != NO_INPUT)
+          key_or_mouse_details.SetInputEvent(input_buf[i]);
        return key_or_mouse_details;
     }
 
@@ -936,6 +947,7 @@ class CPlansza {
             TMoveStatus move_status;
 
             key_or_mouse = screen.ReadConInput(true);
+            DisplayStatusLine();
             if (key_or_mouse.GetInputType() == CKeyOrMouseDetails::MOUSE) {
                 screen.ClearLine(1,22,60);
                 screen.PrintString(1,22,"MOUSE:");

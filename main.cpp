@@ -2,6 +2,7 @@
 #include <string>
 #include<iostream>
 #include <windows.h>
+#include <chrono>
 
 #include "rlutil.h"
 
@@ -29,6 +30,7 @@ class CScreenChar {
         char scr_value = ' ';
         int  scr_fcolor = F_WHITE;
         int  scr_bcolor  = B_BLACK;
+        bool reversed = false;
     public:
 
     CScreenChar() {
@@ -39,6 +41,7 @@ class CScreenChar {
         scr_value = value_;
         scr_fcolor = fcolor_;
         scr_bcolor = bcolor_;
+        reversed = false;
     }
 
     void SetValue (char value_) {
@@ -48,6 +51,14 @@ class CScreenChar {
         scr_fcolor = fcolor_;
         scr_bcolor = bcolor_;
 
+    }
+
+    bool IsReversed () {
+      return reversed;
+    }
+
+    bool SetReversed (bool reversed_) {
+      reversed = reversed_;
     }
 
     char GetValue() {
@@ -294,9 +305,17 @@ public:
     }
 
     void ReverseColor (int x_, int y_ ) {
-        PrintChar(x_, y_, screen_table[x_][y_].GetValue(),
+        if (!screen_table[x_][y_].IsReversed()) {
+            PrintChar(x_, y_, screen_table[x_][y_].GetValue(),
                   screen_table[x_][y_].GetBackgroundColor(),
                   screen_table[x_][y_].GetForegroundColor()|16384);
+                  screen_table[x_][y_].SetReversed(true);
+        } else {
+            PrintChar(x_, y_, screen_table[x_][y_].GetValue(),
+                  screen_table[x_][y_].GetForegroundColor(),
+                  screen_table[x_][y_].GetBackgroundColor());
+                  screen_table[x_][y_].SetReversed(false);
+        };
     }
 
     void ClearLine ( int x_, int y_, int len_,int fcolor_ = F_WHITE, int bcolor_ = B_BLACK ) {
@@ -346,6 +365,8 @@ public:
 
     }
 
+
+
     bool KeyEventAction (KEY_EVENT_RECORD ker) {
          return true;
     }
@@ -361,9 +382,12 @@ public:
         enum TExit {CONT,KEY_EXIT,MOUSE_EXIT,READ_ERROR} exit_loop;
 
 
-//        if (! SetInputMode() )
+//        if (! SetInputMode()     if (key_or_mouse.GetPressedKey() == 'f')
+//                PrintString (0,24,"Wprowadz wspolrzedne do oflagowania:");)
 //          cout <<"Blad wywolania SetConsoleMode";
 
+       if (key_or_mouse_details.GetPressedKey() == 'f')
+                PrintString (0,24,"Wprowadz wspolrzedne do oflagowania:");
 
         exit_loop = CONT;
         while (exit_loop == CONT) {
@@ -519,7 +543,9 @@ class CPolePlanszy {
        char ret_char= ' ';
 
        if (debug)
-         if (visible)
+         if (flaged)
+           ret_char ='F';
+         else if (visible)
            if (mine_present)
              ret_char = '*';
            else
@@ -529,18 +555,20 @@ class CPolePlanszy {
                ret_char = 'H';
             else
               ret_char = '0'+ near_mines;
+              //ret_char = 'X';
         else
-          if (visible)
+          if (flaged)
+             ret_char ='F';
+          else if (visible)
              if (mine_present)
-                ret_char = '*';
-             else
-                 ret_char ='0'+ near_mines;
-          else
-             if (mine_present)
-                ret_char = 'X';
-             else
+               ret_char = '*';
+              else
+                ret_char ='0'+ near_mines;
+          else if (mine_present)
                ret_char = 'X';
-
+            else
+              //ret_char = '0'+ near_mines;
+              ret_char = 'X';
 
        return ret_char;
     }
@@ -556,9 +584,14 @@ class CPlansza {
 
       CConsoleScreen screen;
       enum TCellSize { SMALL, BIG} cell_size;
+      enum TMoveStatus {CORECT_MOVE,GAME_OVER,DUMMY_MOVE,YOU_WIN};
 
       int plansza_pos_x = 4;
       int plansza_pos_y = 4;
+
+      int ilosc_min=10;
+      int ilosc_flag=0;
+      std::chrono::system_clock::time_point start_rozgrywki = std::chrono::system_clock::now();
 
 
     public:
@@ -633,6 +666,13 @@ class CPlansza {
             }
         }
     }
+
+    void UstawMiny (int ilosc_min_) {
+      //TODO losowanie min na planszy
+       ilosc_min=ilosc_min_;
+       ilosc_flag=0;
+       start_rozgrywki = std::chrono::system_clock::now();
+    };
 
 
     void GenerateTest () {
@@ -714,33 +754,112 @@ class CPlansza {
 
     }
 
+    void DisplayStatusLine () {
+
+       screen.PrintString (0,0,"Ilosc min: ");
+       screen.PrintIntRJust(12,0,ilosc_min,3);
+       screen.PrintString (16,0,"Ilosc oflagowanych: ");
+       screen.PrintIntRJust(37,0,ilosc_flag,3);
+       screen.PrintString (42,0,"Pozostala ilosc min: ");
+       screen.PrintIntRJust(65,0,ilosc_min-ilosc_flag,3);
+       screen.PrintString(69,0,"Czas rozgrywki: ");
+       screen.PrintIntRJust(88,0,
+       chrono::duration_cast<chrono::seconds>( std::chrono::system_clock::now()- start_rozgrywki).count(),4);
+
+    }
+
     void DisplayPlansza (bool debug_) {
+      DisplayStatusLine();
       for (int y =0; y<ysize;y++)
         for(int x = 0; x<xsize;x++)
             DisplayOneCell( x, y, Plansza[x][y].toChar(debug_),FOREGROUND_GREEN);
 
     }
+
+    TMoveStatus DoMove (int x_, int y_) {
+
+       TMoveStatus return_status;
+
+       if (Plansza[x_][y_].isVisible() || Plansza[x_][y_].isFlaged()) {
+            return_status = DUMMY_MOVE;
+       }else if (Plansza[x_][y_].isMinned() ) {
+            return_status = GAME_OVER;
+            DisplayPlansza(true);
+            screen.PrintString(30,4,"GAME OVER !!! YOU BLOWN UP EVERYTHING",FOREGROUND_BLUE,BACKGROUND_RED);
+       } else {
+         return_status = CORECT_MOVE;
+         Unhide(x_,y_);
+         DisplayPlansza(false);
+         // ToDo sprawdzenie czy czasami ktoœ nie wygra³ wtedy zwracamy YOU_WIN
+       }
+       return return_status;
+    }
+
+    TMoveStatus DoFlag (int x_, int y_) {
+      TMoveStatus return_status;
+
+      if (Plansza[x_][y_].isVisible()) {
+        return_status = DUMMY_MOVE;
+      } else  {
+        if (Plansza[x_][y_].isFlaged()) ilosc_flag--;
+        else ilosc_flag++;
+        Plansza[x_][y_].ToogleFlag();
+        DisplayPlansza(false);
+        return_status = CORECT_MOVE;
+      };
+
+       return return_status;
+    }
+
     void InputHandler() {
-       bool quit_program = false;
-       CKeyOrMouseDetails key_or_mouse;
+        bool quit_program = false;
+        CKeyOrMouseDetails key_or_mouse;
 
-       screen.HideCursor();
+        screen.HideCursor();
 
-    while (!quit_program) {
-        key_or_mouse = screen.ReadConInput(true);
-        if (key_or_mouse.GetInputType() == CKeyOrMouseDetails::MOUSE) {
-            screen.ClearLine(1,22,60);
-            screen.PrintString(1,22,"MOUSE:");
-            if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::LEFT_CLK)
-                screen.PrintString(8,22,"LEFT_CLICK");
-            else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::RIGHT_CLK)
-                screen.PrintString(8,22,"RIGHT_CLICK");
-            else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::DOUBLE_CLK)
-                screen.PrintString(8,22,"DOUBLE_CLICK");
-            else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::CLK)
-                screen.PrintString(8,22,"OTHER_CLICK");
-            else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::MOUSE_MOVE)
-                screen.ReverseColor(key_or_mouse.GetMouseXPos(),key_or_mouse.GetMouseYPos());
+        while (!quit_program) {
+      //  int key = rlutil::getkey();
+            int plansza_x;
+            int plansza_y;
+            TMoveStatus move_status;
+
+            key_or_mouse = screen.ReadConInput(true);
+            if (key_or_mouse.GetInputType() == CKeyOrMouseDetails::MOUSE) {
+                screen.ClearLine(1,22,60);
+                screen.PrintString(1,22,"MOUSE:");
+                plansza_x = (key_or_mouse.GetMouseXPos() - 7)/2;
+                plansza_y = key_or_mouse.GetMouseYPos() - 6;
+                if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::LEFT_CLK) {
+                    screen.PrintString(8,22,"LEFT_CLICK");
+                    screen.PrintIntRJust(30,23,plansza_x,3);
+                    screen.PrintIntRJust(34,23,plansza_y,3);
+                    move_status = DoMove(plansza_x,plansza_y);
+                    if (move_status == GAME_OVER) {
+                       screen.PrintString(1,23,"MOVE : GAME OVER");
+                        quit_program = true;
+                    }
+                    else if (move_status == DUMMY_MOVE) screen.PrintString(1,23,"MOVE : DUMMY_MOVE");
+                    else  if (move_status == CORECT_MOVE) screen.PrintString(1,23,"MOVE : CORECT_MOVE");
+
+                }
+                else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::RIGHT_CLK) {
+                    screen.PrintString(8,22,"RIGHT_CLICK");
+                    screen.PrintIntRJust(30,23,plansza_x,3);
+                    screen.PrintIntRJust(34,23,plansza_y,3);
+                    move_status = DoFlag(plansza_x,plansza_y);
+                    if (move_status == GAME_OVER) screen.PrintString(1,23,"MOVE : GAME OVER");
+                    else if (move_status == DUMMY_MOVE) screen.PrintString(1,23,"MOVE : DUMMY_MOVE");
+                    else  if (move_status == CORECT_MOVE) screen.PrintString(1,23,"MOVE : CORECT_MOVE");
+
+                }
+                else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::DOUBLE_CLK)
+                    screen.PrintString(8,22,"DOUBLE_CLICK");
+                else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::CLK)
+                    screen.PrintString(8,22,"OTHER_CLICK");
+                else if (key_or_mouse.GetMouseEvent() == CKeyOrMouseDetails::MOUSE_MOVE) {
+                  DisplayStatusLine();
+                 //   screen.ReverseColor(key_or_mouse.GetMouseXPos(),key_or_mouse.GetMouseYPos());
+                };
             screen.PrintIntRJust(20,22,key_or_mouse.GetMouseXPos(),4);
             screen.PrintIntRJust(26,22,key_or_mouse.GetMouseYPos(),4);
         } else {
@@ -753,10 +872,15 @@ class CPlansza {
             screen.PrintChar(30,22,key_or_mouse.GetPressedKey());
             if (key_or_mouse.GetPressedKey() == 'q')
                 quit_program = true;
+            if (key_or_mouse.GetPressedKey() == 'f')
+                screen.PrintString (0,23,"Wprowadz wspolrzedne do oflagowania:");
+            if (key_or_mouse.GetPressedKey() == 'o')
+                screen.PrintString (0,23,"Wprowadz wspolrzedne do odkrycia   :");
+            DisplayStatusLine();
         };
 
     };
-    screen.ShowCursor();
+        screen.ShowCursor();
   }
 }; //Class
 
@@ -772,12 +896,13 @@ int main()
   Plansza.GenerateTest();
   Plansza.PutMine(4,5);
   Plansza.PutMine(4,7);
+  Plansza.UstawMiny(10);
   Plansza.DisplayPlansza(true);
 //  Plansza.DspPlansza();
   Plansza.CalcAllMines();
   Plansza.DisplayPlansza(true);
 //  Plansza.DspPlansza();
-  Plansza.Unhide(1,8);
+ // Plansza.Unhide(1,8);
   Plansza.DisplayPlansza(false);
   Plansza.ChangeCellFrameColor(5 , 5, FOREGROUND_RED,B_BLACK);
    console_scr.SetCursor(1, 28);

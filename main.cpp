@@ -846,6 +846,17 @@ class CPlansza {
 
     void DisplayStatusLine () {
 
+       int sec_from_start;
+       int d_sec,d_min,d_hour;
+       char str_buf[20];
+
+       sec_from_start = chrono::duration_cast<chrono::seconds>( std::chrono::system_clock::now()- start_rozgrywki).count();
+       d_sec = sec_from_start % 60;
+       d_min = (sec_from_start/60) %60;
+       d_hour = sec_from_start/3600;
+
+       sprintf (str_buf,"%02d:%02d:%02d",d_hour,d_min,d_sec);
+
        screen.PrintString (0,0,"Ilosc min: ");
        screen.PrintIntRJust(12,0,ilosc_min,3);
        screen.PrintString (16,0,"Ilosc oflagowanych: ");
@@ -853,8 +864,7 @@ class CPlansza {
        screen.PrintString (42,0,"Pozostala ilosc min: ");
        screen.PrintIntRJust(65,0,ilosc_min-ilosc_flag,3);
        screen.PrintString(69,0,"Czas rozgrywki: ");
-       screen.PrintIntRJust(88,0,
-       chrono::duration_cast<chrono::seconds>( std::chrono::system_clock::now()- start_rozgrywki).count(),4);
+       screen.PrintString(88,0,str_buf);
 
     }
 

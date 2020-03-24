@@ -21,8 +21,7 @@ typedef int TPlansza[PLANSZA_MAX_X][PLANSZA_MAX_Y];
 #define MAX_SCREEN_X 160
 #define MAX_SCREEN_Y 100
 #define F_WHITE  FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED
-#define B_WHITE  BACKGROUND_BLUE|BACKGROUNhttps://docs.microsoft.com/en-us/windows/console/D_GREEN|BACKGROUND_RED
-#define F_BLACK  0
+#define B_WHITE  BACKGROUND_BLUE|BACKGROUN
 #define B_BLACK  0
 
 class CScreenChar {
@@ -204,7 +203,6 @@ private:
     HANDLE h_std_out;
     DWORD save_old_mode;
 
-https://docs.microsoft.com/en-us/windows/console/
 public:
     CConsoleScreen () {
        DWORD input_mode = ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT;
@@ -369,7 +367,7 @@ public:
          return true;
     }
 
-https://docs.microsoft.com/en-us/windows/console/
+
 
 #define INPUT_BUF_SIZE 128
     CKeyOrMouseDetails ReadConInput(bool return_mouse_move) {

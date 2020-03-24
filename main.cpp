@@ -21,7 +21,7 @@ typedef int TPlansza[PLANSZA_MAX_X][PLANSZA_MAX_Y];
 #define MAX_SCREEN_X 160
 #define MAX_SCREEN_Y 100
 #define F_WHITE  FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED
-#define B_WHITE  BACKGROUND_BLUE|BACKGROUND_GREEN|BACKGROUND_RED
+#define B_WHITE  BACKGROUND_BLUE|BACKGROUNhttps://docs.microsoft.com/en-us/windows/console/D_GREEN|BACKGROUND_RED
 #define F_BLACK  0
 #define B_BLACK  0
 
@@ -204,7 +204,7 @@ private:
     HANDLE h_std_out;
     DWORD save_old_mode;
 
-
+https://docs.microsoft.com/en-us/windows/console/
 public:
     CConsoleScreen () {
        DWORD input_mode = ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT;
@@ -369,10 +369,10 @@ public:
          return true;
     }
 
-
+https://docs.microsoft.com/en-us/windows/console/
 
 #define INPUT_BUF_SIZE 128
-  CKeyOrMouseDetails ReadConInput(bool return_mouse_move){
+    CKeyOrMouseDetails ReadConInput(bool return_mouse_move) {
 
         DWORD num_read, i;
         INPUT_RECORD input_buf[INPUT_BUF_SIZE];
@@ -382,22 +382,22 @@ public:
 
         exit_loop = CONT;
         while (exit_loop == CONT) {
-           GetNumberOfConsoleInputEvents (h_std_in, &num_read);
-           if (num_read > 0)
-               if (! ReadConsoleInput(
-                    h_std_in,      // input buffer handle
-                    input_buf,     // buffer to read into
-                    INPUT_BUF_SIZE,         // size of read buffer
-                    &num_read) ){
-                        cout << "ERROR ReadConsoleINPUT";
-                        exit_loop = READ_ERROR;
-                        continue;
-                      } ;
-         for (i=0; i < num_read; i++) {
-            switch(input_buf[i].EventType) {
+            GetNumberOfConsoleInputEvents (h_std_in, &num_read);
+            if (num_read > 0)
+                if (! ReadConsoleInput(
+                            h_std_in,      // input buffer handle
+                            input_buf,     // buffer to read into
+                            INPUT_BUF_SIZE,         // size of read buffer
+                            &num_read) ) {
+                    cout << "ERROR ReadConsoleINPUT";
+                    exit_loop = READ_ERROR;
+                    continue;
+                } ;
+            for (i=0; i < num_read; i++) {
+                switch(input_buf[i].EventType) {
                 case KEY_EVENT: // keyboard input
                     if (KeyEventAction(input_buf[i].Event.KeyEvent))
-                            exit_loop = KEY_EXIT;
+                        exit_loop = KEY_EXIT;
                     break;
 
                 case MOUSE_EVENT: // mouse input
@@ -416,20 +416,21 @@ public:
                 default:
                     break;
 
-            }
+                }
 
-           if (exit_loop != CONT) break;
-         }
-         if (num_read == 0) {
-            wait_counter--;
-            Sleep(1);
-            if (wait_counter < 1)
-               exit_loop = NO_INPUT;
-         };
+                if (exit_loop != CONT)
+                    break;
+            }
+            if (num_read == 0) {
+                wait_counter--;
+                Sleep(1);
+                if (wait_counter < 1)
+                    exit_loop = NO_INPUT;
+            };
         }
-       if (exit_loop != READ_ERROR  && exit_loop != NO_INPUT)
-          key_or_mouse_details.SetInputEvent(input_buf[i]);
-       return key_or_mouse_details;
+        if (exit_loop != READ_ERROR  && exit_loop != NO_INPUT)
+            key_or_mouse_details.SetInputEvent(input_buf[i]);
+        return key_or_mouse_details;
     }
 
 };
@@ -915,7 +916,7 @@ class CPlansza {
                 screen.PrintString(30,4,"YOU WON !!!! REALLY YOU WON !!!!!",FOREGROUND_BLUE,BACKGROUND_RED);
 
              }
-             // ToDo sprawdzenie czy czasami ktoœ nie wygra³ wtedy zwracamy YOU_WIN
+             // ToDo sprawdzenie czy czasami ktoÅ“ nie wygraÂ³ wtedy zwracamy YOU_WIN
            }
        };
        return return_status;
@@ -924,24 +925,29 @@ class CPlansza {
     TMoveStatus DoFlag (int x_, int y_) {
       TMoveStatus return_status;
 
-      if (Plansza[x_][y_].isVisible()) {
-        return_status = DUMMY_MOVE;
-      } else  {
-        if (Plansza[x_][y_].isFlaged()) ilosc_flag--;
-        else ilosc_flag++;
-        Plansza[x_][y_].ToogleFlag();
-        DisplayPlansza(false);
-        return_status = CORECT_MOVE;
-         if (GameWon ()) {
-                return_status = YOU_WIN;
-                DisplayPlansza(true);
-                screen.PrintString(30,4,"YOU WON !!!! REALLY YOU WON !!!!!",FOREGROUND_BLUE,BACKGROUND_RED);
+       if (x_ <0 || y_ < 0 || x_ >= xsize || y_ >= ysize ) {
+          return_status = DUMMY_MOVE;
+       }
+      else
+          if (Plansza[x_][y_].isVisible()) {
+            return_status = DUMMY_MOVE;
+          } else  {
+            if (Plansza[x_][y_].isFlaged()) ilosc_flag--;
+            else ilosc_flag++;
+            Plansza[x_][y_].ToogleFlag();
+            DisplayPlansza(false);
+            return_status = CORECT_MOVE;
+             if (GameWon ()) {
+                    return_status = YOU_WIN;
+                    DisplayPlansza(true);
+                    screen.PrintString(30,4,"YOU WON !!!! REALLY YOU WON !!!!!",FOREGROUND_BLUE,BACKGROUND_RED);
 
-         }
+             }
       };
 
        return return_status;
     }
+
 
     void InputHandler() {
         bool quit_program = false;
